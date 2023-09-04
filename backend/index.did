@@ -1,0 +1,39 @@
+type Proposal = record {
+  id : nat;
+  exp : nat;
+  iat : nat;
+  status : Status;
+  title : text;
+  description : text;
+  voteNo : nat;
+  issuer : principal;
+  start : nat;
+  participation : nat;
+  voteYes : nat;
+};
+type Status = variant { pending; onVoting; finish; rejected; accepted };
+type User = record {
+  id : principal;
+  userName : text;
+  votingPower : nat;
+  metadata : text;
+  votedProposalsId : vec nat;
+  proposals : vec nat;
+};
+type _AzleResult = variant { Ok : text; Err : text };
+service : () -> {
+  changeStatus : (nat) -> ();
+  deleteMyUser : () -> (bool);
+  get : () -> (nat) query;
+  getIcTimeSeconds : () -> (nat) query;
+  getProposalById : (nat) -> (opt Proposal) query;
+  getProposalByStatus : (Status) -> (opt vec Proposal) query;
+  seeMyUser : () -> (opt User) query;
+  seeOneUser : (text) -> (opt User) query;
+  seeProposals : () -> (vec Proposal) query;
+  seeUsers : () -> (vec User) query;
+  setUser : (text) -> (User);
+  submitProposal : (text, text, nat, nat) -> (Proposal);
+  updateMetaObj : (text) -> (bool);
+  voteOnProposal : (nat, bool) -> (_AzleResult);
+}
