@@ -34,6 +34,7 @@ service : () -> {
   seeUsers : () -> (vec User) query;
   setUser : (text) -> (User);
   submitProposal : (text, text, nat, nat) -> (Proposal);
+  tic : () -> ();
   updateMetaObj : (text) -> (bool);
   voteOnProposal : (nat, bool) -> (_AzleResult);
 }

@@ -1,8 +1,23 @@
-# Vite + React + Azle
+# The no reason DAO 
 
+## Guide lines throughout this project.
+
+This project is backed ontop of the [Vite-React-Azle](https://github.com/Code-and-State/typescript-bootcamp/tree/main/templates/vite-react-azle) template. First of all i want to extend my greetings to @seb and all the @code&state team. 
+Through out the next commits i'll be improving the features and functionalities. 
+
+This project is called "The No Reason DAO" because right now has no usefull functionalities but pretends to be the backbone of next personal projects were the intention of building a real and usefull dao is achieved.
+
+### Features included
+
+This implementation, by the time of writing, is capable of:
+
+- Log in with Internet Identity. 
+- Set a logged in user as a member of the current DAO. 
+- Newbie Members of the DAO receive 1 Voting Power which enables the posibility to make proposals and to vote on propoasl as well.
+- 
 ## Getting started
 
-Make sure that [Node.js](https://nodejs.org/en/) `>= 16.x` and [`dfx`](https://internetcomputer.org/docs/current/developer-docs/build/install-upgrade-remove) `>= 0.14.x` are installed on your system.
+Make sure that [Node.js](https://nodejs.org/en/) `>= 16.x` and [`dfx`](https://internetcomputer.org/docs/current/developer-docs/build/install-upgrade-remove) `>= 0.14.3Beta-0` are installed on your system.
 
 Run the following commands:
 ```sh

@@ -5,7 +5,7 @@ let votingSupply : nat = BigInt(0);
 let startTimes: Vec<Tuple<Times>> = [];
 let expTimes: Vec<Tuple<Times>> = [];
 
-//Type Times <tuple> {timestamp, id}
+
 type Times = Tuple<[nat,nat]>
 
 type User= Record<{
@@ -129,8 +129,7 @@ export function getProposalByStatus(status: Status): Opt<Vec<Proposal>>{
         const propsArr = Array.from(proposalsDb.values());
         console.log(propsArr,'arrr',proposalsDb.values());
         const propsByStatus = propsArr.filter((item)=>{
-            console.log(item.status,"lets see", status);
-            item.status === status;
+            return JSON.stringify(item.status) === JSON.stringify(status);
         })
         if(propsByStatus.length === 0){ return Opt.None}
    return Opt.Some(propsByStatus)
@@ -178,20 +177,19 @@ $update;
 export function changeStatus(id:nat): void {
     match(proposalsDb.get(id), {
         Some: (proposal) => {
-            console.log("prooposal", proposal.status);
-         switch (proposal.status) {
-            case {pending:null}:
+         switch (JSON.stringify(proposal.status)) {
+            case "{\"pending\":null}":
                 if(ic.time()/BigInt(1000)/BigInt(1000)/BigInt(1000)> proposal.start){
                 proposal.status = {onVoting:null};
                 startTimes.splice(startTimes.indexOf([proposal.start, proposal.id]),1);
                 };
-            case {onVoting: null}:
+            case "{\"onVoting\":null}":
                 if(ic.time()/BigInt(1000)/BigInt(1000)/BigInt(1000)> proposal.exp){
                 proposal.status = {finish:null};
                 expTimes.splice(expTimes.indexOf([proposal.exp, proposal.id]),1);
                 };
                 break;
-            case {finish:null}:
+            case "{\"finish\":null}":
                 if(proposal.participation>0){
                     if(proposal.voteYes>proposal.voteNo){
                         proposal.status = {accepted:null}
@@ -202,10 +200,8 @@ export function changeStatus(id:nat): void {
                 }
 
                 break;
+     
             };
-            console.log("proposal Update", proposal);
-            console.log("startTs array", startTimes);
-            console.log("expTs array", expTimes);
           proposalsDb.insert(id,proposal); 
         },
         None: () => { console.log(`Proposal with id: ${id} does not exist`);}
@@ -217,7 +213,7 @@ $update;
 export function voteOnProposal(id:nat, vote:boolean): Result<text, text> {
     return match(proposalsDb.get(id), {
         Some: (proposal) => {
-            if(proposal.status.onVoting){
+            if(JSON.stringify(proposal.status)==="{\"onVoting\":null}"){
                 if(vote === true){ 
                     proposal.voteYes += BigInt(1);
                     proposal.participation += BigInt(1);
@@ -226,8 +222,9 @@ export function voteOnProposal(id:nat, vote:boolean): Result<text, text> {
                     proposal.voteNo += BigInt(1);
                     proposal.participation += BigInt(1);
                 }
+                proposalsDb.insert(id,proposal);
                 return { Ok:` Your vote was successfully casted to the proposal: ${id}`}
-            }return { Err: `This proposal is not available for voting. Current Status: ${proposal.status}`}
+            }return { Err: `This proposal is not available for voting. Current Status: ${JSON.stringify(proposal.status)}`}
         },
         None: ()=>{
             return {
@@ -267,4 +264,25 @@ function dec(): nat {
     votingSupply -= BigInt(1);
     return votingSupply
 }
+
+$update;
+export function tic(): void{
+   const initTs = Array.from(startTimes);
+   initTs.forEach((element)=>{
+    console.log("element", element);
+    if(ic.time()/BigInt(1000)/BigInt(1000)/BigInt(1000) > element[0]){
+        console.log("enter tic for start, elem: "+ typeof element[1] + element[1]);
+        changeStatus(element[1]);
+    }
+   });
+   const finishTs = Array.from(expTimes);
+   finishTs.forEach((element)=>{
+    console.log('fin elem',element);
+    if(ic.time()/BigInt(1000)/BigInt(1000)/BigInt(1000) > element[0]){
+        console.log(`enter tic for finish, elem: ${element[1]}`);
+        changeStatus(element[1]);
+    }
+   });
+};
+
 
