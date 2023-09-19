@@ -4,6 +4,7 @@ import { $query, $update, nat,Principal,Record, StableBTreeMap, text, Vec, ic, O
 let votingSupply : nat = BigInt(0);
 let startTimes: Vec<Tuple<Times>> = [];
 let expTimes: Vec<Tuple<Times>> = [];
+let finishIds: Vec<nat> = [];
 
 
 type Times = Tuple<[nat,nat]>
@@ -44,19 +45,26 @@ let proposalsDb = new StableBTreeMap<nat, Proposal>(1,20,10_000)
 
 //Users logic
 $update;
-export function setUser(userName:text): User {
-    
-    const user = {
-        id: ic.caller(),
-        userName: userName,
-        metadata: '',
-        votingPower: BigInt(1),
-        votedProposalsId: [],
-        proposals: []
-    }
-    userDb.insert(ic.caller(), user)
-    inc();
-    return user;
+export function setUser(userName:text): Result<User,text> {
+   return match(userDb.get(ic.caller()),{
+        Some: (user)=>{
+            return {Err: `This user is already registered under the username: ${user.userName}`}
+        },
+        None: ()=>{
+            const user = {
+                id: ic.caller(),
+                userName: userName,
+                metadata: '',
+                votingPower: BigInt(1),
+                votedProposalsId: [],
+                proposals: []
+            }
+            userDb.insert(ic.caller(), user)
+            inc();
+            return {Ok: user};
+
+        }
+    })
 }
 
 
@@ -123,7 +131,7 @@ export function getProposalById(id:nat): Opt<Proposal>{
 }
 
 
-//check maybe re-deploy
+
 $query;
 export function getProposalByStatus(status: Status): Opt<Vec<Proposal>>{
         const propsArr = Array.from(proposalsDb.values());
@@ -137,39 +145,46 @@ export function getProposalByStatus(status: Status): Opt<Vec<Proposal>>{
     
 $update;
 export function submitProposal(title: text, description: text, gotVoting: nat, expiration: nat): Proposal {
-    //time in seconds
-    const newProposal: Proposal = {
-        id: proposalsDb.len() + BigInt(1),
-        issuer: ic.caller(),
-        iat: ic.time()/BigInt(1000)/BigInt(1000)/BigInt(1000),
-        start: gotVoting,
-        exp: expiration,
-        title: title,
-        description: description,
-        status: { pending: null},
-        voteYes: 0n,
-        voteNo: 0n,
-        participation: 0n
+ return match(userDb.get(ic.caller()),{
+     Some: (user)=>{
+        //time in seconds
+        const newProposal: Proposal = {
+            id: proposalsDb.len() + BigInt(1),
+            issuer: user.id,
+            iat: ic.time()/BigInt(1000)/BigInt(1000)/BigInt(1000),
+            start: gotVoting,
+            exp: expiration,
+            title: title,
+            description: description,
+            status: { pending: null},
+            voteYes: 0n,
+            voteNo: 0n,
+            participation: 0n
 
 
-    }
-    if(newProposal.iat < newProposal.start && newProposal.start < newProposal.exp ){
-        console.log(newProposal);
-    const start_time: Times = [newProposal.start, newProposal.id]
-    const exp_time: Times = [newProposal.exp, newProposal.id]
-    startTimes.push(start_time);
-    expTimes.push(exp_time);
-    proposalsDb.insert(newProposal.id, newProposal)
-    console.log("STRTSS",startTimes,"EXPSSS",expTimes);
-    return newProposal
-    }else{
-        console.log(`iat: ${newProposal.iat}, start time: ${newProposal.start}, or expiration: ${newProposal.exp} time not correspond`);
-
+        }
+      if(newProposal.iat < newProposal.start && newProposal.start < newProposal.exp ){
+       
+        user.proposals.push(newProposal.id);
+        userDb.insert(user.id,user);
+        
+        const start_time: Times = [newProposal.start, newProposal.id]
+        const exp_time: Times = [newProposal.exp, newProposal.id]
+        startTimes.push(start_time);
+        expTimes.push(exp_time);
+        proposalsDb.insert(newProposal.id, newProposal)
+        return newProposal
+      }else{
+     
+        newProposal.description = `iat: ${newProposal.iat}, start time: ${newProposal.start}, or expiration: ${newProposal.exp} time not correspond`
         newProposal.status = {rejected:null};
         return newProposal
     }
     
-
+    },
+    None: ()=>{ic.trap('it is not allowed to submit a proposal if you are not a member, please register as a member first.')
+    }
+ })
 
 }
 
@@ -186,6 +201,7 @@ export function changeStatus(id:nat): void {
             case "{\"onVoting\":null}":
                 if(ic.time()/BigInt(1000)/BigInt(1000)/BigInt(1000)> proposal.exp){
                 proposal.status = {finish:null};
+                finishIds.push(proposal.id);
                 expTimes.splice(expTimes.indexOf([proposal.exp, proposal.id]),1);
                 };
                 break;
@@ -197,7 +213,8 @@ export function changeStatus(id:nat): void {
                 }else{
                     proposal.status = {rejected:null};
                     proposal.description = `Proposal rejected due to no participation`
-                }
+                };
+                finishIds.splice(finishIds.indexOf(proposal.id),1);
 
                 break;
      
@@ -211,27 +228,40 @@ export function changeStatus(id:nat): void {
 
 $update;
 export function voteOnProposal(id:nat, vote:boolean): Result<text, text> {
-    return match(proposalsDb.get(id), {
-        Some: (proposal) => {
-            if(JSON.stringify(proposal.status)==="{\"onVoting\":null}"){
-                if(vote === true){ 
-                    proposal.voteYes += BigInt(1);
-                    proposal.participation += BigInt(1);
-                }
-                else {
-                    proposal.voteNo += BigInt(1);
-                    proposal.participation += BigInt(1);
-                }
-                proposalsDb.insert(id,proposal);
-                return { Ok:` Your vote was successfully casted to the proposal: ${id}`}
-            }return { Err: `This proposal is not available for voting. Current Status: ${JSON.stringify(proposal.status)}`}
-        },
-        None: ()=>{
+    const user = userDb.get(ic.caller());
+    
+    if(user.Some){
+        if(user.Some.votedProposalsId.includes(id)){
             return {
-                Err:`No proposal listed with id: ${id}`
-            }
+                Err:`You have already casted a vote for proposal id: ${id}` }
         }
-    })
+        return match(proposalsDb.get(id), {
+            Some: (proposal) => {
+                if(JSON.stringify(proposal.status)==="{\"onVoting\":null}"){
+                    if(vote === true){ 
+                        proposal.voteYes += BigInt(1);
+                        proposal.participation += BigInt(1);
+                    }
+                    else {
+                        proposal.voteNo += BigInt(1);
+                        proposal.participation += BigInt(1);
+                    }
+                    proposalsDb.insert(id,proposal);
+                    user.Some.votedProposalsId.push(id);
+                    userDb.insert(ic.caller(),user.Some);
+                    return { Ok:` Your vote was successfully casted to the proposal: ${id}`}
+                }return { Err: `This proposal is not available for voting. Current Status: ${JSON.stringify(proposal.status)}`}
+            },
+            None: ()=>{
+                return {
+                    Err:`No proposal listed with id: ${id}`
+                }
+            }
+        })
+    }else {
+            return { Err: "not a registered user, please become a member" }
+        
+    }
 }
 
 
@@ -268,21 +298,23 @@ function dec(): nat {
 $update;
 export function tic(): void{
    const initTs = Array.from(startTimes);
+   console.log("initTs", initTs.length, initTs);
    initTs.forEach((element)=>{
-    console.log("element", element);
     if(ic.time()/BigInt(1000)/BigInt(1000)/BigInt(1000) > element[0]){
-        console.log("enter tic for start, elem: "+ typeof element[1] + element[1]);
         changeStatus(element[1]);
     }
    });
    const finishTs = Array.from(expTimes);
+   console.log("finishTs", finishTs.length, finishTs);
    finishTs.forEach((element)=>{
-    console.log('fin elem',element);
     if(ic.time()/BigInt(1000)/BigInt(1000)/BigInt(1000) > element[0]){
-        console.log(`enter tic for finish, elem: ${element[1]}`);
         changeStatus(element[1]);
     }
    });
+   finishIds.forEach((element)=>{
+    console.log("element finish id",element);
+    changeStatus(element)
+   })
 };
 
 

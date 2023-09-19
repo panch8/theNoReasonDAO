@@ -4,12 +4,24 @@ import azleLogo from './assets/azle_logo.svg';
 import azleShadow from './assets/azle_shadow.png';
 import { backend } from './declarations/backend';
 import { AuthClient } from '@dfinity/auth-client';
-import { Actor, HttpAgent} from '@dfinity/agent';
+import { Actor, HttpAgent, Identity} from '@dfinity/agent';
 import { idlFactory } from './declarations/backend';
+import { canisterId, createActor } from "./declarations/backend"
 
 
 let authClientStore: AuthClient | null = null;
 
+ async function handleAuthenticated(authClient: AuthClient) {
+  const identity = (await authClient.getIdentity()) as unknown as Identity;
+  const backend_actor = createActor(canisterId as string, {
+    agentOptions: {
+      identity,
+    },
+  });
+  return backend_actor;
+ };
+
+ 
 function App() {
   const [count, setCount] = useState<number | undefined>();
   const [loading, setLoading] = useState(false);
@@ -59,6 +71,20 @@ const displayMessage = (message: string): void=>{
     onSuccess: async () => {
       authClientStore = authClient;    
       setLogged(true);
+      //  identity = await authClientStore.getIdentity();
+
+      //  const actor = Actor.createActor(idlFactory, {
+      //   agent: new HttpAgent({
+      //     identity,
+      //   }),
+      //   canisterId: "bkyz2-fmaaa-aaaaa-qaaaq-cai",
+      // });
+      
+      
+      
+
+      
+
     },
   });
 
@@ -69,7 +95,18 @@ const logout = async () =>{
   setLogged(false)
 }
 
-  const updateMetadata = async (event: any) =>{
+// const createActor = async () =>{
+//   const identity = await authClientStore?.getIdentity()
+//      const actor =  Actor.createActor(idlFactory, {
+//       agent: new HttpAgent({
+//         identity,
+//       }),
+//       canisterId: "bkyz2-fmaaa-aaaaa-qaaaq-cai",
+//     });
+//     return actor;
+// }
+
+const updateMetadata = async (event: any) =>{
     event.preventDefault();
     if(!logged){
       displayMessage("You must be an active member logged in");
@@ -78,13 +115,31 @@ const logout = async () =>{
     let meta = event.target.closest('form').querySelector('input').value
     typeof meta !== 'string' && (meta = JSON.stringify(meta))
     console.log(meta);
-     const result = await backend.updateMetaObj(meta);
+    //  const result = await backend.updateMetaObj(meta);
+    //  const identity = await authClientStore?.getIdentity()
+    //  console.log(identity?.getPrincipal().toString())
+    //  const actor =  Actor.createActor(idlFactory, {
+    //   agent: new HttpAgent({
+    //     identity,
+    //   }),
+    //   canisterId: "bkyz2-fmaaa-aaaaa-qaaaq-cai",
+    // });
+
+    const identity = (await authClientStore?.getIdentity()) as unknown as Identity;
+    const backend_actor = createActor(canisterId as string, {
+    agentOptions: {
+      identity,
+    },
+  });
+
+    const result = await backend_actor.updateMetaObj(meta);
+    console.log(result)
      if(result){
       displayMessage('Successfully updated metadata')
      }else {console.log('smth happn ')}
   }
 
-  const seeAll = async ()=>{
+const seeAll = async ()=>{
     const result =  await backend.seeUsers();
     console.log(result)
     if(result.length>0 ){
@@ -93,21 +148,33 @@ const logout = async () =>{
 
   }
 
-  const setNewMember = async (event: any)=>{
+const setNewMember = async (event: any)=>{
     event.preventDefault();
     if(!logged){
       displayMessage('You must log in to become a Member =)')
       return;}
     const userName =event.target.closest('form').querySelector('input').value;
 
-    const exist = await backend.seeMyUser();
+    const identity = await authClientStore?.getIdentity()
+    console.log(identity?.getPrincipal().toString());
+     const actor =  Actor.createActor(idlFactory, {
+      agent: new HttpAgent({
+        identity,
+      }),
+      canisterId: "bkyz2-fmaaa-aaaaa-qaaaq-cai",
+    });  
+
+    // const exist = await backend.seeMyUser();
+    const exist: any = await actor.seeMyUser();
     console.log(exist);
     if (exist.length > 0){
       displayMessage('You are already a registered member')
-      return;}
-    await backend.setUser(userName);
+      return;
+    }
+    // await backend.setUser(userName);
+    await actor.setUser(userName);
     displayMessage(`Yey!! Welcome to our community   ${userName}!!!!`);
-  }
+  };
 
 const addToCount =async (e: any) => {
   if(loading)return;
@@ -116,7 +183,7 @@ const addToCount =async (e: any) => {
   console.log(sum);
   try {
     setLoading(true);
-    await backend.add(sum); // Increment the count by argument
+    // await backend.add(sum); // Increment the count by argument
     await fetchCount(); // Fetch the new count
     
   } finally {
@@ -134,7 +201,7 @@ const addToCount =async (e: any) => {
 
     try {
         setLoading(true);
-        await backend.inc(); // Increment the count by 1
+        // await backend.inc(); // Increment the count by 1
         await fetchCount(); // Fetch the new count
         
       } finally {

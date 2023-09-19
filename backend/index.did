@@ -20,7 +20,8 @@ type User = record {
   votedProposalsId : vec nat;
   proposals : vec nat;
 };
-type _AzleResult = variant { Ok : text; Err : text };
+type _AzleResult = variant { Ok : User; Err : text };
+type _AzleResult_1 = variant { Ok : text; Err : text };
 service : () -> {
   changeStatus : (nat) -> ();
   deleteMyUser : () -> (bool);
@@ -32,9 +33,9 @@ service : () -> {
   seeOneUser : (text) -> (opt User) query;
   seeProposals : () -> (vec Proposal) query;
   seeUsers : () -> (vec User) query;
-  setUser : (text) -> (User);
+  setUser : (text) -> (_AzleResult);
   submitProposal : (text, text, nat, nat) -> (Proposal);
   tic : () -> ();
   updateMetaObj : (text) -> (bool);
-  voteOnProposal : (nat, bool) -> (_AzleResult);
+  voteOnProposal : (nat, bool) -> (_AzleResult_1);
 }
